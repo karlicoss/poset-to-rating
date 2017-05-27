@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 import csv
+from enum import Enum
 import json
 import random
 from typing import Dict, List, Set, Tuple
@@ -10,56 +11,13 @@ def invmap(d: Dict) -> Dict:
         raise RuntimeError("Dictionary is not bijective!")
     return res
 
-j = None
-with open('data.json', 'r') as fo:
-    j = json.load(fo)
-
-titles = j['titles']
 
 class Movie:
-    def __init__(self, stuff: dict) -> None:
-        self.stuff = stuff
-
-    def genres(self) -> List[str]:
-        return self.stuff['metadata']['genres']
-
-    def title(self) -> str:
-        return self.stuff['primary']['title']
-
-    def id(self) -> str:
-        return self.stuff['id']
-
-    def __repr__(self, *args, **kwargs):
-        return self.title()
-
-
-class Movie2:
     def __init__(self, title: str, rating: str) -> None:
         self.title = title
         self.rating = rating
 
-class Ratings:
-    def __init__(self, ratings: dict) -> None:
-        self.ratings = ratings
 
-    def register(self, m1: str, m2: str, res: str):
-        key = (m1, m2)
-        old = self.ratings.get(key)
-        if old is None or old == res:
-            self.ratings[key] = res
-        else:
-            print("UGH")
-
-    def to_json(self) -> str:
-        jform = {str(k): v for k, v in self.ratings.items()}
-        return json.dumps(jform, indent=2)
-
-    @staticmethod
-    def from_json(jstr: str) -> 'Ratings':
-        jform = json.loads(jstr)
-        return Ratings({tuple(k.split(',')): v for k, v in jform.items()})
-
-from enum import Enum
 class Edge(Enum):
     WORSE = "worse" # <
     BETTER = "better" # >
@@ -79,8 +37,7 @@ sym2edge = {
 edge2sym = invmap(sym2edge)
 
 class RatingGraph:
-
-    def __init__(self, id2movie: Dict[str, Movie2], graph: Dict[str, List[str]]) -> None:
+    def __init__(self, id2movie: Dict[str, Movie], graph: Dict[str, List[str]]) -> None:
         self.id2movie = id2movie
         self.graph = graph
 
@@ -93,10 +50,10 @@ class RatingGraph:
                 title = line['Title']
                 rating = line['You rated']
                 id_ = "n" + str(i)
-                id2movie[id_] = Movie2(title, rating)
+                id2movie[id_] = Movie(title, rating)
 
         title2id = invmap({k: v.title for k, v in id2movie.items()})
-        graph = {id_: [] for id_ in id2movie}
+        graph = {id_: [] for id_ in id2movie} # type: Dict[str, List[str]]
         with open(ratings_fname, 'r') as fo:
             for line in fo:
                 [st, a, b] = line.split(';')
@@ -212,17 +169,10 @@ class Dsu:
 
 
 def add_more(seed: int):
-    state_fname = 'state.txt'
-    ratings_fname = 'ratings.csv'
-    old_state = load_state(state_fname)
-    ratings = get_ratings_map(ratings_fname)
-    all_movies = list(sorted(ratings.keys())) # TODO use movie ids instead?..
-    stats = {m: 0 for m in all_movies}
-    for (a, b), s in old_state.items():
-        if s in [Edge.BETTER, Edge.WORSE, Edge.SAME]:
-            stats[a] += 1
-            stats[b] += 1
-    stats_by_edges = list(p[0] for p in sorted(stats.items(), key = lambda k: k[1]))
+    stats = {k: len(v) for k, v in graph.graph.items()}
+    stats_by_count = list(p[0] for p in sorted(stats.items(), key = lambda k: (k[1], k[0])))
+    sample = stats_by_count[:15]
+    print("Lowest stats:", sample)
 
     gen = random.Random(x=seed)
 
@@ -231,19 +181,17 @@ def add_more(seed: int):
     # tuples = set((a, b) for (a, b) in itertools.product(sample, sample) if a < b)
     # tsample = gen.sample(tuples, 10)
 
-    sample = stats_by_edges[:15]
-    print("Lowerst stats:", sample)
     tuples = set()
     for a in sample:
-        b = gen.choice(all_movies)
-        if a == b:
+        b = gen.choice(list(graph.id2movie.keys()))
+        if a == b or b in graph.graph[a]:
+            print("COLLISION, SKIPPING {} {}".format(a, b))
             continue
-        tp = (a, b) if a < b else (b, a)
+        ta = graph.id2movie[a].title
+        tb = graph.id2movie[b].title # TODO get_title
+        tp = (ta, tb) if ta < tb else (tb, ta)
         tuples.add(tp)
 
-    if len(tuples.intersection(old_state)) != 0:
-        print("COLLISIONS!")
-        tuples.difference_update(old_state)
     tsample = tuples
 
     with open(state_fname, 'a') as fo:

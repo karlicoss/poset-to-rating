@@ -144,16 +144,14 @@ def plot():
     for i, m in enumerate(marked):
         mmap[m] = "n" + str(i)
 
-# TODO 
-# TODO neato looks nicer
 # TODO tred: transitive reduction
-# neato -Tpng graph.dot  -o graph.png 
+# dot -Tpng graph.dot  -o graph.png 
 
     with open('graph.dot', 'w') as fo:
         fo.write('digraph test {')
 
         fo.write('rankdir=LR;\n')
-        fo.write('size="20,20";\n')
+        fo.write('size="5,20";\n')
         fo.write('dpi="300";\n')
         fo.write('ratio="fill";\n')
         edges = []
@@ -191,7 +189,7 @@ def plot():
 
             fillc = vcolor.get(id_, 'white')
 
-            fo.write('  {} [fillcolor={} style=filled label = "{}"];\n'.format(id_, fillc, label))
+            fo.write('  {} [shape=circle, fillcolor={} style=filled label = "{}"];\n'.format(id_, fillc, label))
 
         # TODO rest of edges?
         fo.write('}')
@@ -203,10 +201,10 @@ def add_more(seed: int):
     ratings = get_ratings_map(ratings_fname)
     all_movies = list(sorted(ratings.keys())) # TODO use movie ids instead?..
     stats = {m: 0 for m in all_movies}
-    for a, b in old_state:
-        # TODO only count if not ignored?
-        stats[a] += 1
-        stats[b] += 1
+    for (a, b), s in old_state.items():
+        if s in [Edge.BETTER, Edge.WORSE, Edge.SAME]:
+            stats[a] += 1
+            stats[b] += 1
     stats_by_edges = list(p[0] for p in sorted(stats.items(), key = lambda k: k[1]))
 
     gen = random.Random(x=seed)
@@ -236,7 +234,8 @@ def add_more(seed: int):
             fo.write(" ;{};{}\n".format(a, b)) # TODO separator?
 
 plot()
-# add_more(98237)
+# add_more(237)
 
 # TODO Fake edges to enforce lower bound on marks
 # TODO even better strategy: connect unconnected components to build a spanning tree?
+# TODO compare with IMDB ratings afterwards. correlation?

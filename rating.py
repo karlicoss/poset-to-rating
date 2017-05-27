@@ -25,7 +25,6 @@ class Edge(Enum):
     INCOMPARABLE = "incomparable" # ? e.g. for movies in completely different categories (e.g) documentary vs action
     IGNORE = "ignore" # use ignore if you don't really remember the movie, e.g. for later handling
 
-
 sym2edge = {
     '<': Edge.WORSE,
     '>': Edge.BETTER,
@@ -35,6 +34,7 @@ sym2edge = {
 }
 
 edge2sym = invmap(sym2edge)
+
 
 class RatingGraph:
     def __init__(self, id2movie: Dict[str, Movie], graph: Dict[str, List[str]]) -> None:
@@ -170,6 +170,9 @@ class Dsu:
 
 def add_more(seed: int):
     stats = {k: len(v) for k, v in graph.graph.items()}
+    for from_, tos in graph.graph.items():
+        for to in tos:
+            stats[to] += 1
     stats_by_count = list(p[0] for p in sorted(stats.items(), key = lambda k: (k[1], k[0])))
     sample = stats_by_count[:15]
     print("Lowest stats:", sample)
@@ -192,15 +195,17 @@ def add_more(seed: int):
         tp = (ta, tb) if ta < tb else (tb, ta)
         tuples.add(tp)
 
-    tsample = tuples
-
     with open(state_fname, 'a') as fo:
-        for a, b in tsample:
+        for a, b in tuples:
             fo.write(" ;{};{}\n".format(a, b)) # TODO separator?
 
 graph.plot('graph.dot')
-# add_more(43676737)
+# add_more(4362376737)
 
+# TODO right now, the best movies get priority since they dont have out
 # TODO Fake edges to enforce lower bound on marks
 # TODO even better strategy: connect unconnected components to build a spanning tree?
 # TODO compare with IMDB ratings afterwards. correlation?
+# TODO split marks uniformly by weight? So 10% of the movies get 1 point 
+# TODO I didn't watch some of the movies for a while, so some movies rated 10 end up having low rating.
+#      perhaps some sort of 'confidence'? Depending on how long ago you watched the movie

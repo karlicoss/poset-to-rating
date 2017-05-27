@@ -99,6 +99,34 @@ def load_state(fname: str) -> Dict[Tuple[str, str], Edge]:
                 res[(a, b)] = sym2edge[st]
         return res
 
+class Dsu:
+    def __init__(self, items: List):
+        self.parents = {i: i for i in items}
+
+    def merge(self, i, j):
+        pi = self.get_parent(i)
+        pj = self.get_parent(j)
+        if pi == pj:
+            return
+        else:
+            self.parents[pj] = pi
+
+    def get_parent(self, i):
+        pp = self.parents[i]
+        if pp == i:
+            return i
+        else:
+            return self.get_parent(pp)
+
+    def get_groups(self):
+        groups = {}
+        for k in self.parents:
+            rp = self.get_parent(k)
+            l = groups.get(rp, [])
+            l.append(k)
+            groups[rp] = l
+        return groups
+
 def plot():
     state_fname = 'state.txt'
     ratings_fname = 'ratings.csv'
@@ -108,7 +136,7 @@ def plot():
     stats = {m: 0 for m in all_movies}
     for (a, b), s in old_state.items():
         # TODO only count if not ignored?
-        if s in [Edge.BETTER, Edge.WORSE]:
+        if s in [Edge.BETTER, Edge.WORSE, Edge.SAME]:
             stats[a] += 1
             stats[b] += 1
     marked = list(sorted(m for (m, c) in stats.items() if c > 0))
@@ -124,16 +152,47 @@ def plot():
     with open('graph.dot', 'w') as fo:
         fo.write('digraph test {')
 
+        fo.write('rankdir=LR;\n')
         fo.write('size="20,20";\n')
-        fo.write('dpi="600";\n')
+        fo.write('dpi="300";\n')
         fo.write('ratio="fill";\n')
-        for name, id_ in mmap.items():
-            fo.write('  {} [label = "{}"];\n'.format(id_, name))
+        edges = []
+        dsu = Dsu(mmap.values())
         for (a, b), st in old_state.items(): # TODO sorted order..
             if st == Edge.WORSE:
-                fo.write('  {} -> {};\n'.format(mmap[a], mmap[b]))
+                ma = mmap[a]
+                mb = mmap[b]
+                edges.append('  {} -> {};'.format(ma, mb))
             elif st == Edge.BETTER:
-                fo.write('  {} -> {};\n'.format(mmap[b], mmap[a]))
+                ma = mmap[a]
+                mb = mmap[b]
+                edges.append('  {} -> {};\n'.format(mb, ma))
+            elif st == Edge.SAME:
+                ma = mmap[a]
+                mb = mmap[b]
+                dsu.merge(ma, mb)
+                print("SAME {} {}".format(ma, mb))
+
+        for e in edges:
+            fo.write(e + "\n")
+
+        groups = dsu.get_groups()
+        groups = {k: v for (k, v) in groups.items() if len(v) > 1}
+        colors = ['yellow', 'red', 'green', 'blue', 'magenta']
+
+        vcolor = {}
+        for col, g in zip(colors, groups.values()):
+            for v in g:
+                vcolor[v] = col
+        
+        for name, id_ in mmap.items():
+            # label = name
+            label = id_
+
+            fillc = vcolor.get(id_, 'white')
+
+            fo.write('  {} [fillcolor={} style=filled label = "{}"];\n'.format(id_, fillc, label))
+
         # TODO rest of edges?
         fo.write('}')
 
@@ -157,7 +216,7 @@ def add_more(seed: int):
     # tuples = set((a, b) for (a, b) in itertools.product(sample, sample) if a < b)
     # tsample = gen.sample(tuples, 10)
 
-    sample = stats_by_edges[:10]
+    sample = stats_by_edges[:15]
     print("Lowerst stats:", sample)
     tuples = set()
     for a in sample:
@@ -167,10 +226,9 @@ def add_more(seed: int):
         tp = (a, b) if a < b else (b, a)
         tuples.add(tp)
 
-    for t in tuples:
-        if t in old_state:
-             print("COLLISION!", t)
-             tuples.remove(t)
+    if len(tuples.intersection(old_state)) != 0:
+        print("COLLISIONS!")
+        tuples.difference_update(old_state)
     tsample = tuples
 
     with open(state_fname, 'a') as fo:
@@ -178,8 +236,7 @@ def add_more(seed: int):
             fo.write(" ;{};{}\n".format(a, b)) # TODO separator?
 
 plot()
-# add_more(1122343)
+# add_more(98237)
 
-# TODO plot a dot graph?
-# TODO better strategy: for each movie, pick a random one, iterate util you are satisfied with the graph
 # TODO Fake edges to enforce lower bound on marks
+# TODO even better strategy: connect unconnected components to build a spanning tree?

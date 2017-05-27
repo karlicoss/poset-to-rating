@@ -26,12 +26,12 @@ class Movie:
     def __repr__(self, *args, **kwargs):
         return self.title()
 
-def get_ratings_map(fname: str) -> Dict[str, float]:
+def get_ratings_map(fname: str) -> Dict[str, str]:
     with open(fname, 'r') as fo:
         reader = csv.DictReader(fo)
         res = {}
         for line in reader:
-            res[line['Title']] = float(line['You rated'])
+            res[line['Title']] = line['You rated'] # TODO ugh, screw float for now...
         return res
 
 class Ratings:
@@ -63,6 +63,7 @@ class Edge(Enum):
     INCOMPARABLE = "incomparable" # ? e.g. for movies in completely different categories (e.g) documentary vs action
     IGNORE = "ignore" # use ignore if you don't really remember the movie, e.g. for later handling
 
+
 sym2edge = {
     '<': Edge.WORSE,
     '>': Edge.BETTER,
@@ -74,6 +75,8 @@ sym2edge = {
 edge2sym = {
     v: k for k, v in sym2edge.items()
 }
+
+
 
 # movies = [Movie(v) for k, v in sorted(titles.items())]
 
@@ -143,16 +146,20 @@ def plot():
     mmap = {}
     for i, m in enumerate(marked):
         mmap[m] = "n" + str(i)
+        print(mmap[m], m)
 
 # TODO tred: transitive reduction
 # dot -Tpng graph.dot  -o graph.png 
 
+# TODO color based on rating?
+# TODO update dynamically, you can see the nodes moving and laying out.
+
     with open('graph.dot', 'w') as fo:
         fo.write('digraph test {')
 
-        fo.write('rankdir=LR;\n')
-        fo.write('size="5,20";\n')
-        fo.write('dpi="300";\n')
+        fo.write('rankdir=BT;\n')
+        fo.write('size="20, 5";\n')
+        fo.write('dpi="500";\n')
         fo.write('ratio="fill";\n')
         edges = []
         dsu = Dsu(mmap.values())
@@ -169,23 +176,34 @@ def plot():
                 ma = mmap[a]
                 mb = mmap[b]
                 dsu.merge(ma, mb)
-                print("SAME {} {}".format(ma, mb))
 
         for e in edges:
             fo.write(e + "\n")
 
-        groups = dsu.get_groups()
-        groups = {k: v for (k, v) in groups.items() if len(v) > 1}
-        colors = ['yellow', 'red', 'green', 'blue', 'magenta']
+        id2name = {v:k for k, v in mmap.items()}
 
         vcolor = {}
-        for col, g in zip(colors, groups.values()):
-            for v in g:
-                vcolor[v] = col
-        
+        # groups = dsu.get_groups()
+        # groups = {k: v for (k, v) in groups.items() if len(v) > 1}
+        # colors = ['yellow', 'red', 'green', 'blue', 'magenta']
+        # for col, g in zip(colors, groups.values()):
+        #     for v in g:
+        #         vcolor[v] = col
+
+        rat2color = {
+            "10": "red",
+            "9": "green",
+            "8": "blue",
+            "7": "yellow",
+        }
+        for name, id_ in mmap.items():
+            rating = ratings[id2name[id_]]
+            vcolor[id_] = rat2color.get(rating, 'white')
+
         for name, id_ in mmap.items():
             # label = name
-            label = id_
+            rating = ratings[id2name[id_]]
+            label = id_ + " " + rating
 
             fillc = vcolor.get(id_, 'white')
 
@@ -234,7 +252,7 @@ def add_more(seed: int):
             fo.write(" ;{};{}\n".format(a, b)) # TODO separator?
 
 plot()
-# add_more(237)
+# add_more(43676737)
 
 # TODO Fake edges to enforce lower bound on marks
 # TODO even better strategy: connect unconnected components to build a spanning tree?
